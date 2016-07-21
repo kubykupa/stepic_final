@@ -20,7 +20,9 @@ static const int SERVER_MAX_CLIENTS_QUEUE = 1000;
 static const int READ_BUFFER_SIZE = 1024;
 
 const char* RESPONSE_HTML = "<html><head><title>Hello from server</title></head><body><p>Life is lime</p></body></html>";
-const char* RESPONSE_404 = "HTTP/1.0 404 NOT FOUND\r\nContent-Type: text/html\r\n\r\n";
+const char* RESPONSE_404 = "HTTP/1.0 404 NOT FOUND\r\n"
+                           "Content-length: 0\r\n"
+                           "Content-Type: text/html\r\n\r\n";
 const char* RESPONSE_200 = "HTTP/1.0 200 OK\r\n"
                             "Content-length: %d\r\n"
                             "Connection: close\r\n"
@@ -28,7 +30,7 @@ const char* RESPONSE_200 = "HTTP/1.0 200 OK\r\n"
                             "\r\n"
                             "%s";
 
-bool NEED_DEAMON = false;
+bool NEED_DEAMON = true;
 
 void parse_input_params(int argc, char** argv) {
     int c;
@@ -44,9 +46,10 @@ void parse_input_params(int argc, char** argv) {
                 DIRECTORY = optarg;
                 break;
             case 'D':
-                NEED_DEAMON = true;
+                NEED_DEAMON = false;
                 break;
             default:
+                printf("Usage: %s -h <host> -p <port> -d <folder>\n", argv[0]);
                 abort();
         }
     }
