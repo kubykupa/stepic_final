@@ -5,10 +5,10 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <cstring>
+#include <pthread.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
-//#include <sys/epoll.h>
 
 #include <arpa/inet.h>
 
@@ -18,6 +18,7 @@ const char* PORT        = NULL;
 
 static const int SERVER_MAX_CLIENTS_QUEUE = 1000;
 static const int READ_BUFFER_SIZE = 1024;
+static const int THREAD_COUNT = 4;
 
 const char* RESPONSE_HTML = "<b>Hello world!</b>";
 const char* RESPONSE_404 = "HTTP/1.0 404 NOT FOUND\r\n"
@@ -31,6 +32,16 @@ const char* RESPONSE_200 = "HTTP/1.0 200 OK\r\n"
                             "%s";
 
 bool NEED_DEAMON = true;
+
+enum THREAD_STATUS {
+    IDLE = 0,
+    PROCESSING,
+    FINISHED
+};
+
+pthread_t THREADS[THREAD_COUNT];
+THREAD_STATUS STATUSES[THREAD_COUNT];
+int CLIENTS[THREAD_COUNT];
 
 void parse_input_params(int argc, char** argv) {
     int c;
@@ -84,22 +95,6 @@ int send_all(int socket, char *buf, int len, int flags = 0) {
     return sent_bytes == -1 ? -1 : total;
 }
 
-int make_socket_non_blocking (int sfd) {
-    int flags = fcntl (sfd, F_GETFL, 0);
-    if (flags == -1) {
-        perror("fcntl get flags");
-        return -1;
-    }
-
-    flags |= O_NONBLOCK;
-    if (fcntl (sfd, F_SETFL, flags) == -1) {
-        perror("fcntl set flags");
-        return -1;
-    }
-
-    return 0;
-}
-
 int create_and_bind() {
     int listener = socket(AF_INET, SOCK_STREAM, 0);
     if (listener < 0) {
@@ -120,9 +115,6 @@ int create_and_bind() {
 }
 
 void process_client(int client_socket) {
-    //char msg[] = "hello from server";
-    //send_all(client_socket, msg, sizeof(msg));
-
     char buffer[READ_BUFFER_SIZE];
     int nbytes = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
     if (nbytes == -1) {
@@ -131,7 +123,7 @@ void process_client(int client_socket) {
     }
 
     buffer[nbytes] = '\0';
-    //printf("request [%s]\n", buffer);
+    printf("request [%s]\n", buffer);
 
     char* find_index = strstr(buffer, "GET /index.html");
     if (find_index == NULL) {
@@ -139,6 +131,49 @@ void process_client(int client_socket) {
     } else {
         nbytes = sprintf(buffer, RESPONSE_200, strlen(RESPONSE_HTML), RESPONSE_HTML);
         send_all(client_socket, buffer, nbytes);
+    }
+}
+
+void* job(void* args) {
+    int index = *((int*) args);
+    printf("job for index: %d\n", index);
+    process_client(CLIENTS[index]);
+    STATUSES[index] = FINISHED;
+    return 0;
+}
+
+
+void start_job(pthread_t* thread, void* (*func)(void*), int index) {
+    int status = pthread_create(thread, NULL, func, &index);
+    if (status != 0) {
+        perror("create thread failed");
+    }
+}
+
+void wait_job(pthread_t thread) {
+    int status = pthread_join(thread, NULL);
+    if (status != 0) {
+        perror("thread join failed");
+    }
+}
+
+void update_clients(int client_socket) {
+    while (1) {
+        for (int i = 0; i < THREAD_COUNT; ++i) {
+            if (STATUSES[i] == FINISHED) {
+                wait_job(THREADS[i]);
+                close(CLIENTS[i]);
+                STATUSES[i] = IDLE;
+                printf("client finished: [%d]\n", i);
+            }
+            if (STATUSES[i] == IDLE) {
+                printf("client start: [%d]\n", i);
+                CLIENTS[i] = client_socket;
+                STATUSES[i] = PROCESSING;
+                start_job(&THREADS[i], job, i);
+                return;
+            }
+        }
     }
 }
 
@@ -164,25 +199,24 @@ void run_server() {
         }
 
         inet_ntop(AF_INET, &client_addr, client_addr_str, INET_ADDRSTRLEN);
-        //printf("server: got connection from [%s]\n", client_addr_str);
+        printf("server: got connection from [%s]\n", client_addr_str);
+        update_clients(client_socket);
+    }
+}
 
-        if (!fork()) { // тут начинается рабочий процесс
-            close(listener); // ему не нужен слушающий сокет
-            process_client(client_socket);
-            close(client_socket);
-            //printf("finish client: [%s]\n", client_addr_str);
-            exit(0);
-        }
-        close(client_socket);  // а этот сокет больше не нужен демону-родителю
+void init() {
+    for (size_t i = 0; i < THREAD_COUNT; ++i) {
+        STATUSES[i] = IDLE;
     }
 }
 
 int main (int argc, char **argv) {
+    init();
     parse_input_params(argc, argv);
     demonization_if_needed();
 
     run_server();
-    //printf("Server exit\n");
+    printf("Server exit\n");
     return 0;
 }
 
