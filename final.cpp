@@ -60,22 +60,22 @@ void parse_input_params(int argc, char** argv) {
                 NEED_DEAMON = false;
                 break;
             default:
-                printf("Usage: %s -h <host> -p <port> -d <folder>\n", argv[0]);
+                fprintf(stderr, "Usage: %s -h <host> -p <port> -d <folder>\n", argv[0]);
                 abort();
         }
     }
-    printf("host = %s, port = %s, dir = %s\n", HOST, PORT, DIRECTORY);
+    fprintf(stderr, "host = %s, port = %s, dir = %s\n", HOST, PORT, DIRECTORY);
 }
 
 void demonization_if_needed() {
     if (NEED_DEAMON) {
-        printf("Deamonization is needed\n");
+        fprintf(stderr, "Deamonization is needed\n");
         pid_t pid = fork();
         if (pid != 0 ) {
-            printf("Parent process should be closed\n");
+            fprintf(stderr, "Parent process should be closed\n");
             exit(0);
         }
-        printf("Ok, we a daemon now: %d\n", getpid());
+        fprintf(stderr, "Ok, we a daemon now: %d\n", getpid());
     }
 }
 
@@ -123,7 +123,7 @@ void process_client(int client_socket) {
     }
 
     buffer[nbytes] = '\0';
-    printf("request [%s]\n", buffer);
+    fprintf(stderr, "request [%s]\n", buffer);
 
     char* find_index = strstr(buffer, "GET /index.html");
     if (find_index == NULL) {
@@ -136,7 +136,7 @@ void process_client(int client_socket) {
 
 void* job(void* args) {
     int index = *((int*) args);
-    printf("job for index: %d\n", index);
+    fprintf(stderr, "job for index: %d\n", index);
     process_client(CLIENTS[index]);
     STATUSES[index] = FINISHED;
     free(args);
@@ -167,10 +167,10 @@ void update_clients(int client_socket) {
                 wait_job(THREADS[i]);
                 close(CLIENTS[i]);
                 STATUSES[i] = IDLE;
-                printf("client finished: [%d]\n", i);
+                fprintf(stderr, "client finished: [%d]\n", i);
             }
             if (STATUSES[i] == IDLE) {
-                printf("client start: [%d]\n", i);
+                fprintf(stderr, "client start: [%d]\n", i);
                 CLIENTS[i] = client_socket;
                 STATUSES[i] = PROCESSING;
                 start_job(i);
@@ -201,7 +201,7 @@ void run_server() {
         }
 
         inet_ntop(AF_INET, &client_addr, client_addr_str, INET_ADDRSTRLEN);
-        printf("server: got connection from [%s]\n", client_addr_str);
+        fprintf(stderr, "server: got connection from [%s]\n", client_addr_str);
         update_clients(client_socket);
     }
 }
@@ -218,7 +218,7 @@ int main (int argc, char **argv) {
     demonization_if_needed();
 
     run_server();
-    printf("Server exit\n");
+    fprintf(stderr, "Server exit\n");
     return 0;
 }
 
