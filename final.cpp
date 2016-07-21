@@ -86,7 +86,7 @@ int send_all(int socket, char *buf, int len, int flags = 0) {
     while (total < len) {
         sent_bytes = send(socket, buf + total, len - total, flags);
         if (sent_bytes == -1) {
-            perror("send error");
+            fprintf(stderr, "send error");
             break;
         }
         total += sent_bytes;
@@ -98,7 +98,7 @@ int send_all(int socket, char *buf, int len, int flags = 0) {
 int create_and_bind() {
     int listener = socket(AF_INET, SOCK_STREAM, 0);
     if (listener < 0) {
-        perror("socket");
+        fprintf(stderr, "socket create failed");
         exit(1);
     }
 
@@ -107,7 +107,7 @@ int create_and_bind() {
     addr.sin_port = htons(atoi(PORT));
     addr.sin_addr.s_addr = inet_addr(HOST);
     if (bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        perror("bind");
+        fprintf(stderr, "bind failed");
         exit(2);
     }
 
@@ -118,7 +118,7 @@ void process_client(int client_socket) {
     char buffer[READ_BUFFER_SIZE];
     int nbytes = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
     if (nbytes == -1) {
-        perror("read client socket");
+        fprintf(stderr, "socket read error");
         return;
     }
 
@@ -149,14 +149,14 @@ void start_job(int index) {
     *arg = index;
     int status = pthread_create(&THREADS[index], NULL, job, arg);
     if (status != 0) {
-        perror("create thread failed");
+        fprintf(stderr, "create thread failed");
     }
 }
 
 void wait_job(pthread_t thread) {
     int status = pthread_join(thread, NULL);
     if (status != 0) {
-        perror("thread join failed");
+        fprintf(stderr, "thread join failed");
     }
 }
 
@@ -164,8 +164,8 @@ void update_clients(int client_socket) {
     while (1) {
         for (int i = 0; i < THREAD_COUNT; ++i) {
             if (STATUSES[i] == FINISHED) {
-                wait_job(THREADS[i]);
-                close(CLIENTS[i]);
+                wait_job(THREADS[i]);   // wait thread
+                close(CLIENTS[i]);      // close socket
                 STATUSES[i] = IDLE;
                 fprintf(stderr, "client finished: [%d]\n", i);
             }
@@ -186,7 +186,7 @@ void run_server() {
 
     int listener = create_and_bind();
     if (listen(listener, SERVER_MAX_CLIENTS_QUEUE) == -1) {
-        perror("listen");
+        fprintf(stderr, "listen failed");
         exit(3);
     }
 
@@ -196,7 +196,7 @@ void run_server() {
     while (1) {
         int client_socket = accept(listener, (struct sockaddr *)&client_addr, &sin_size);
         if (client_socket == -1) {
-            perror("accept");
+            fprintf(stderr, "accept failed");
             continue;
         }
 
