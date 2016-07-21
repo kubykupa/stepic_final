@@ -139,12 +139,15 @@ void* job(void* args) {
     printf("job for index: %d\n", index);
     process_client(CLIENTS[index]);
     STATUSES[index] = FINISHED;
+    free(args);
     return 0;
 }
 
 
-void start_job(pthread_t* thread, void* (*func)(void*), int index) {
-    int status = pthread_create(thread, NULL, func, &index);
+void start_job(int index) {
+    int* arg = (int*) malloc(sizeof(int));
+    *arg = index;
+    int status = pthread_create(&THREADS[index], NULL, job, arg);
     if (status != 0) {
         perror("create thread failed");
     }
@@ -170,7 +173,7 @@ void update_clients(int client_socket) {
                 printf("client start: [%d]\n", i);
                 CLIENTS[i] = client_socket;
                 STATUSES[i] = PROCESSING;
-                start_job(&THREADS[i], job, i);
+                start_job(i);
                 return;
             }
         }
@@ -182,7 +185,6 @@ void run_server() {
     int bytes_read;
 
     int listener = create_and_bind();
-    //make_socket_non_blocking(listener);
     if (listen(listener, SERVER_MAX_CLIENTS_QUEUE) == -1) {
         perror("listen");
         exit(3);
