@@ -131,7 +131,7 @@ void process_client(int client_socket) {
     }
 
     buffer[nbytes] = '\0';
-    printf("request [%s]\n", buffer);
+    //printf("request [%s]\n", buffer);
 
     char* find_index = strstr(buffer, "GET /index.html");
     if (find_index == NULL) {
@@ -164,13 +164,13 @@ void run_server() {
         }
 
         inet_ntop(AF_INET, &client_addr, client_addr_str, INET_ADDRSTRLEN);
-        printf("server: got connection from [%s]\n", client_addr_str);
+        //printf("server: got connection from [%s]\n", client_addr_str);
 
         if (!fork()) { // тут начинается рабочий процесс
             close(listener); // ему не нужен слушающий сокет
             process_client(client_socket);
             close(client_socket);
-            printf("finish client: [%s]\n", client_addr_str);
+            //printf("finish client: [%s]\n", client_addr_str);
             exit(0);
         }
         close(client_socket);  // а этот сокет больше не нужен демону-родителю
@@ -182,7 +182,7 @@ int main (int argc, char **argv) {
     demonization_if_needed();
 
     run_server();
-    printf("Server exit\n");
+    //printf("Server exit\n");
     return 0;
 }
 
